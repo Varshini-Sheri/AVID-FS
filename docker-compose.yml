@@ -1,0 +1,104 @@
+version: "3.9"
+
+# 5-server VerdictFS cluster: n=5, m=3, f=1
+# Satisfies AVID-FP safety requirement: n >= 3f+1  →  5 >= 4 ✓
+
+services:
+  server0:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      SERVER_ID: "0"
+      N: "5"
+      M: "3"
+      F: "1"
+      SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
+    ports:
+      - "5000:5000"
+    networks:
+      - verdictfs
+
+  server1:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      SERVER_ID: "1"
+      N: "5"
+      M: "3"
+      F: "1"
+      SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
+    ports:
+      - "5001:5000"
+    networks:
+      - verdictfs
+
+  server2:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      SERVER_ID: "2"
+      N: "5"
+      M: "3"
+      F: "1"
+      SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
+    ports:
+      - "5002:5000"
+    networks:
+      - verdictfs
+
+  server3:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      SERVER_ID: "3"
+      N: "5"
+      M: "3"
+      F: "1"
+      SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
+    ports:
+      - "5003:5000"
+    networks:
+      - verdictfs
+
+  server4:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      SERVER_ID: "4"
+      N: "5"
+      M: "3"
+      F: "1"
+      SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
+    ports:
+      - "5004:5000"
+    networks:
+      - verdictfs
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - verdictfs
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "verdictfs"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+    networks:
+      - verdictfs
+
+networks:
+  verdictfs:
+    driver: bridge
