@@ -221,6 +221,36 @@ async def retrieve(key: str) -> RetrieveResponse:
     return RetrieveResponse(key=key, fragment=ks.fragment, stored=True)
 
 
+@router.post("/corrupt/{key:path}")
+async def corrupt(key: str) -> dict:
+    """
+    DEBUG ONLY — flip bytes in the stored fragment to simulate a Byzantine server.
+    Call this after dispersal to corrupt what this server has stored.
+    """
+    ks = await _state.get(key)
+    if ks is None or not ks.stored or ks.fragment is None:
+        raise HTTPException(status_code=404, detail="Key not found or not stored")
+
+    bad = bytearray(ks.fragment.data)
+    bad[0] ^= 0xFF
+    bad[1] ^= 0xFF
+    from protocol.messages import Fragment as _Frag
+    ks.fragment = _Frag(index=ks.fragment.index, data=bytes(bad))
+    ks.stored   = False   # mark as unstored so /retrieve returns stored=False
+    ks.verified = False   # mark as unverified
+    logger.warning("DEBUG: corrupted fragment for key=%s on server %d", key, _state.server_id)
+    return {"status": "corrupted", "server": _state.server_id, "key": key}
+
+
+@router.post("/reset/{key:path}")
+async def reset_key(key: str) -> dict:
+    """DEBUG ONLY — wipe state for a key so it can be re-dispersed."""
+    if key in _state._keys:
+        del _state._keys[key]
+        return {"status": "reset", "key": key}
+    raise HTTPException(status_code=404, detail="Key not found")
+
+
 @router.get("/status/{key:path}", response_model=StatusResponse)
 async def status(key: str) -> StatusResponse:
     """Debug endpoint — inspect current state for a key."""
