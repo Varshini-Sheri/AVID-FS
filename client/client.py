@@ -92,7 +92,7 @@ class VerdictFSClient:
 
         statuses = []
         for i, r in enumerate(results):
-            if isinstance(r, Exception):
+            if isinstance(r, BaseException):
                 statuses.append({"server": i, "error": str(r)})
             elif r.status_code == 404:
                 statuses.append({"server": i, "stored": False, "echo_count": 0,
@@ -135,7 +135,7 @@ class VerdictFSClient:
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for i, r in enumerate(results):
-            if isinstance(r, Exception):
+            if isinstance(r, BaseException):
                 chunk_result.server_responses.append(
                     {"server": i, "status": "unreachable", "error": str(r)}
                 )
@@ -144,7 +144,7 @@ class VerdictFSClient:
                     {"server": i, "status": r.status_code, "body": r.json()}
                 )
 
-        failed = sum(1 for r in results if isinstance(r, Exception))
+        failed = sum(1 for r in results if isinstance(r, BaseException))
         if failed > self.n - self.m:
             raise RuntimeError(f"Too many servers unreachable: {failed}/{self.n}")
 
@@ -159,15 +159,24 @@ class VerdictFSClient:
 
         fragments: list[tuple[int, bytes]] = []
         for i, result in enumerate(results):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 logger.warning("retrieve from server %d failed: %s", i, result)
                 continue
+            if result.status_code != 200:
+                logger.warning("server %d returned %d for key %s", i, result.status_code, key)
+                continue
+
             body = result.json()
             frag_data = body.get("fragment")
             if frag_data and body.get("stored"):
                 import base64
-                raw = base64.b64decode(frag_data["data"]) if isinstance(frag_data["data"], str) else bytes(frag_data["data"])
+                raw = (
+                    base64.b64decode(frag_data["data"])
+                    if isinstance(frag_data["data"], str)
+                    else bytes(frag_data["data"])
+                )
                 fragments.append((frag_data["index"], raw))
+
             if len(fragments) >= self.m:
                 break
 
