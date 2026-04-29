@@ -62,11 +62,22 @@ class VerdictFSClient:
         return result
 
     async def get(self, key: str, chunk_count: int) -> bytes:
+        """
+        key: base object key (e.g. "testfile.txt") OR a full chunk key.
+        If key already contains "/chunk/", treat it as a single chunk key directly.
+        Otherwise, generate chunk keys internally.
+        """
+        from fs.chunker import parse_chunk_key
         chunks = []
-        for i in range(chunk_count):
-            ckey = chunk_key(key, i)
-            chunk = await self._retrieve_chunk(ckey)
+        if parse_chunk_key(key) is not None:
+            # Already a chunk key — retrieve it directly, ignore chunk_count
+            chunk = await self._retrieve_chunk(key)
             chunks.append(chunk)
+        else:
+            for i in range(chunk_count):
+                ckey = chunk_key(key, i)
+                chunk = await self._retrieve_chunk(ckey)
+                chunks.append(chunk)
         return join(chunks)
 
     async def wait_for_status(self, key: str, timeout: float = 5.0) -> list[dict]:
@@ -152,12 +163,11 @@ class VerdictFSClient:
                 logger.warning("retrieve from server %d failed: %s", i, result)
                 continue
             body = result.json()
-            if body.get("stored") and body.get("fragment"):
-                frag = body["fragment"]
-                from protocol.messages import Fragment as Frag
+            frag_data = body.get("fragment")
+            if frag_data and body.get("stored"):
                 import base64
-                raw = base64.b64decode(frag["data"]) if isinstance(frag["data"], str) else bytes(frag["data"])
-                fragments.append((frag["index"], raw))
+                raw = base64.b64decode(frag_data["data"]) if isinstance(frag_data["data"], str) else bytes(frag_data["data"])
+                fragments.append((frag_data["index"], raw))
             if len(fragments) >= self.m:
                 break
 
