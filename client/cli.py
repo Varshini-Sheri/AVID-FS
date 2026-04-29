@@ -169,15 +169,84 @@ def get(
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
     """Retrieve a file from the VerdictFS cluster."""
+    import httpx as _httpx
+
     client = _make_client(verbose)
     console.print(f"\n[bold cyan]VerdictFS get[/bold cyan]  {key}  →  {output}")
 
-    if verbose:
-        console.print(f"[dim]Contacting {client.n} servers, need any {client.m} fragments...[/dim]")
+    # Always fetch per-server state for the table
+    async def _fetch_server_state():
+        async with _httpx.AsyncClient(timeout=3.0) as c:
+            retrieve = await asyncio.gather(
+                *[c.get(f"{url}/retrieve/{key}") for url in client.server_urls],
+                return_exceptions=True,
+            )
+            status = await asyncio.gather(
+                *[c.get(f"{url}/status/{key}") for url in client.server_urls],
+                return_exceptions=True,
+            )
+        return retrieve, status
 
-    data = asyncio.run(client.get(key, chunk_count))
-    output.write_bytes(data)
-    console.print(f"[green]✓[/green] Retrieved [bold]{len(data):,}[/bold] bytes  →  {output}\n")
+    # Attempt retrieval
+    success = False
+    recovered_data = None
+    error_msg = ""
+    try:
+        recovered_data = asyncio.run(client.get(key, chunk_count))
+        success = True
+    except RuntimeError as e:
+        error_msg = str(e)
+
+    # Fetch server state for the table
+    retrieve_results, status_results = asyncio.run(_fetch_server_state())
+
+    # Build table — always shown
+    title = f"[green]✓ Retrieval succeeded[/green]  —  key: {key}" if success else f"[red]✗ Retrieval failed[/red]  —  key: {key}"
+    t = Table(title=title, box=box.ROUNDED, header_style="bold")
+    t.add_column("Server",       style="cyan",  width=10)
+    t.add_column("Reachable",    justify="center", width=10)
+    t.add_column("Has fragment", justify="center", width=14)
+    t.add_column("Verified",     justify="center", width=10)
+    t.add_column("Echoes",       justify="center", width=8)
+    t.add_column("Readys",       justify="center", width=8)
+    t.add_column("Stored",       justify="center", width=12)
+
+    have = 0
+    for i, (rr, sr) in enumerate(zip(retrieve_results, status_results)):
+        if isinstance(rr, Exception):
+            t.add_row(f"server{i}", "[red]✗ offline[/red]", "-", "-", "-", "-", "-")
+        else:
+            body   = rr.json()
+            stored = body.get("stored", False)
+            have  += int(stored)
+
+            if isinstance(sr, Exception) or sr.status_code == 404:
+                echo, ready, verified = "-", "-", "-"
+            else:
+                s        = sr.json()
+                echo     = str(s.get("echo_count", 0))
+                ready    = str(s.get("ready_count", 0))
+                verified = "[green]✓[/green]" if s.get("verified") else "[red]✗[/red]"
+
+            t.add_row(
+                f"server{i}",
+                "[green]✓[/green]",
+                "[green]✓[/green]" if stored else "[yellow]✗[/yellow]",
+                verified,
+                echo, ready,
+                "[green]✓ stored[/green]" if stored else "[yellow]pending[/yellow]",
+            )
+
+    console.print(t)
+
+    if success:
+        output.write_bytes(recovered_data)
+        console.print(f"[bold green]✓ Retrieved {len(recovered_data):,} bytes  →  {output}[/bold green]")
+        console.print(f"  ({have}/{client.n} fragments available, needed {client.m})\n")
+    else:
+        console.print(f"[bold red]✗ {error_msg}[/bold red]")
+        console.print(f"  ({have}/{client.n} fragments available, needed {client.m})\n")
+        raise typer.Exit(1)
 
 
 # ---------------------------------------------------------------------------
