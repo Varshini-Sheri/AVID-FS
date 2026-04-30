@@ -172,3 +172,47 @@ class TestByzantineFaults:
         honest_ids = list(range(n - f))  # servers 0,1,2,3 are honest
         for i in honest_ids:
             assert verify_fragment(Fragment(index=i, data=frags[i]), fpcc, i, n, m)
+
+    # ------------------------------------------------------------------ #
+    # Retrieval-path vulnerability: no FPCC verification in client.py
+    # ------------------------------------------------------------------ #
+
+    def test_byzantine_server_poisons_retrieve_without_fpcc_check(self):
+        """
+        Demonstrates the retrieval gap in client.py/_retrieve_chunk.
+
+        The client collects m fragments and calls decode_fragments() directly,
+        without verifying each fragment against the FPCC.  A Byzantine server
+        that returns stored=True with corrupted bytes will silently poison the
+        decoded output — verify_fragment() would catch it, but the client never
+        calls it during retrieval.
+        """
+        from protocol.avid_fp import decode_fragments
+
+        original = b"sensitive data" * 100
+        n, m = 5, 3
+        frags = encode_fragment(original, n, m)
+        fpcc = build_fpcc(frags, n, m)
+
+        # Byzantine server 0: returns corrupted bytes but claims stored=True.
+        # The /corrupt endpoint in routes.py sets stored=False, so it is NOT
+        # a realistic Byzantine model for retrieval — this is the actual attack.
+        byzantine_frag = bytearray(frags[0])
+        byzantine_frag[0] ^= 0xFF
+        byzantine_frag[1] ^= 0xFF
+        byzantine_frag = bytes(byzantine_frag)
+
+        # Replicate exactly what _retrieve_chunk does: no verify_fragment call.
+        collected = [(0, byzantine_frag), (1, frags[1]), (2, frags[2])]
+        recovered = decode_fragments(collected, n, m, len(original))
+
+        # The decoded result is silently wrong.
+        assert recovered != original, (
+            "Expected corrupted decode — Byzantine server poisoned the output "
+            "and the client accepted it without FPCC verification."
+        )
+
+        # verify_fragment() WOULD have caught this — the client just never calls it.
+        assert not verify_fragment(
+            Fragment(index=0, data=byzantine_frag), fpcc, 0, n, m
+        ), "verify_fragment correctly rejects the Byzantine fragment."

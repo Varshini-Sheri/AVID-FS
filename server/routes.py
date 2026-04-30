@@ -212,13 +212,31 @@ async def retrieve(key: str) -> RetrieveResponse:
     metrics.retrieve_duration_seconds.observe(time.perf_counter() - t0)
 
     if ks is None or not ks.stored or ks.fragment is None:
-        return RetrieveResponse(
-            key=key,
-            fragment=None,    # type: ignore[arg-type]
-            stored=False,
-        )
+        return RetrieveResponse(key=key, fragment=None, stored=False)
 
-    return RetrieveResponse(key=key, fragment=ks.fragment, stored=True)
+    return RetrieveResponse(key=key, fragment=ks.fragment, fpcc=ks.fpcc, stored=True)
+
+
+@router.post("/lie/{key:path}")
+async def lie(key: str) -> dict:
+    """
+    DEBUG ONLY — Byzantine mode: corrupt the fragment but keep stored=True.
+    Unlike /corrupt, this server still responds to /retrieve with stored=True
+    but hands back garbage bytes — simulating a server that actively lies.
+    This is the attack that FPCC verification on retrieval is designed to catch.
+    """
+    ks = await _state.get(key)
+    if ks is None or not ks.stored or ks.fragment is None:
+        raise HTTPException(status_code=404, detail="Key not found or not stored")
+
+    bad = bytearray(ks.fragment.data)
+    for i in range(0, len(bad), 4):
+        bad[i] ^= 0b10101010
+    from protocol.messages import Fragment as _Frag
+    ks.fragment = _Frag(index=ks.fragment.index, data=bytes(bad))
+    # stored=True intentionally kept — server lies but stays in the retrieval pool
+    logger.warning("DEBUG: server %d is now lying for key=%s", _state.server_id, key)
+    return {"status": "lying", "server": _state.server_id, "key": key}
 
 
 @router.post("/corrupt/{key:path}")

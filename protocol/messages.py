@@ -54,6 +54,7 @@ class Fragment(BaseModel):
     """A single erasure-coded fragment assigned to one server."""
     index: int
     data: bytes
+    original_len: int = 0   # length of the chunk before RS zero-padding
 
     @field_validator("data", mode="before")
     @classmethod
@@ -78,6 +79,7 @@ class DisperseRequest(BaseModel):
 class RetrieveResponse(BaseModel):
     key: str
     fragment: Fragment | None = None
+    fpcc: FPCC | None = None
     stored: bool
 
 
