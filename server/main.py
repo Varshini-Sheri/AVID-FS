@@ -25,6 +25,7 @@ from fastapi import FastAPI
 
 from server.state import ServerState
 from server.routes import init_routes, router
+from fs.object_store import ObjectStore
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,11 +59,13 @@ async def lifespan(app: FastAPI):
         f=cfg["f"],
     )
 
+    store = ObjectStore(data_dir=os.environ.get("DATA_DIR", "/app/data"))
+
     # Peers = all servers except self
     self_url = cfg["server_urls"][cfg["server_id"]]
     peers = [url for url in cfg["server_urls"] if url != self_url]
 
-    init_routes(state, peers)
+    init_routes(state, peers, store)
     logger.info("Peers: %s", peers)
 
     yield   # server runs here

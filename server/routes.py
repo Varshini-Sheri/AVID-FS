@@ -26,6 +26,7 @@ from protocol.messages import (
 from protocol.avid_fp import verify_fragment, compute_fpcc_digest
 from server.state import ServerState
 from server import metrics
+from fs.object_store import ObjectStore
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,13 +35,15 @@ router = APIRouter()
 # Module-level state — injected by main.py on startup
 # ---------------------------------------------------------------------------
 _state: ServerState | None = None
-_peers: list[str] = []   # list of peer base URLs, e.g. ["http://server2:5000", ...]
+_peers: list[str] = []
+_store: ObjectStore | None = None
 
 
-def init_routes(state: ServerState, peers: list[str]) -> None:
-    global _state, _peers
+def init_routes(state: ServerState, peers: list[str], store: ObjectStore) -> None:
+    global _state, _peers, _store
     _state = state
     _peers = peers
+    _store = store
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +72,11 @@ async def _try_store(key: str, ks) -> None:
     Check store threshold and commit if reached. Must be called under ks.lock.
     """
     if not ks.stored and len(ks.ready_set) >= _state.store_threshold:
-        # TODO: write fragment to persistent storage (fs/object_store.py)
+        _store.put(
+            key,
+            ks.fragment.model_dump(mode="json"),
+            ks.fpcc.model_dump(mode="json"),
+        )
         ks.stored = True
         metrics.stored_objects_total.inc()
         logger.info("server %d stored key=%s", _state.server_id, key)
@@ -211,10 +218,19 @@ async def retrieve(key: str) -> RetrieveResponse:
     ks = await _state.get(key)
     metrics.retrieve_duration_seconds.observe(time.perf_counter() - t0)
 
-    if ks is None or not ks.stored or ks.fragment is None:
-        return RetrieveResponse(key=key, fragment=None, stored=False)
+    # Serve from in-memory KeyState if available.
+    if ks is not None and ks.stored and ks.fragment is not None:
+        return RetrieveResponse(key=key, fragment=ks.fragment, fpcc=ks.fpcc, stored=True)
 
-    return RetrieveResponse(key=key, fragment=ks.fragment, fpcc=ks.fpcc, stored=True)
+    # Fall back to the persistent store (e.g. after a container restart).
+    persisted = _store.get(key)
+    if persisted is not None:
+        from protocol.messages import Fragment as _Frag, FPCC as _FPCC
+        frag = _Frag(**persisted[0])
+        fpcc = _FPCC(**persisted[1])
+        return RetrieveResponse(key=key, fragment=frag, fpcc=fpcc, stored=True)
+
+    return RetrieveResponse(key=key, fragment=None, stored=False)
 
 
 @router.post("/lie/{key:path}")
@@ -227,7 +243,14 @@ async def lie(key: str) -> dict:
     """
     ks = await _state.get(key)
     if ks is None or not ks.stored or ks.fragment is None:
-        raise HTTPException(status_code=404, detail="Key not found or not stored")
+        persisted = _store.get(key)
+        if persisted is None:
+            raise HTTPException(status_code=404, detail="Key not found or not stored")
+        from protocol.messages import Fragment as _Frag, FPCC as _FPCC
+        ks = await _state.get_or_create(key)
+        ks.fragment = _Frag(**persisted[0])
+        ks.fpcc = _FPCC(**persisted[1])
+        ks.stored = True
 
     bad = bytearray(ks.fragment.data)
     for i in range(0, len(bad), 4):
@@ -263,8 +286,11 @@ async def corrupt(key: str) -> dict:
 @router.post("/reset/{key:path}")
 async def reset_key(key: str) -> dict:
     """DEBUG ONLY — wipe state for a key so it can be re-dispersed."""
-    if key in _state._keys:
+    deleted = key in _state._keys
+    if deleted:
         del _state._keys[key]
+    _store.delete(key)
+    if deleted or _store.exists(key):
         return {"status": "reset", "key": key}
     raise HTTPException(status_code=404, detail="Key not found")
 

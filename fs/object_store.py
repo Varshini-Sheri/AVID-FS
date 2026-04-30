@@ -1,61 +1,47 @@
 """
 fs/object_store.py
 
-Object store for VerdictFS.
-Currently in-memory; swap the backend without changing the interface.
-
-Used by:
-  - server/routes.py  (store/retrieve fragments)
-  - client/client.py  (assemble retrieved fragments)
+File-backed object store for VerdictFS.
+Each server persists its fragment + FPCC as a JSON file under DATA_DIR.
+Mount DATA_DIR as a Docker volume so data survives container restarts.
 """
 
 import hashlib
+import json
 import logging
-from dataclasses import dataclass, field
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class StoredObject:
-    key: str
-    data: bytes
-    metadata: dict = field(default_factory=dict)
-
-    @property
-    def checksum(self) -> str:
-        return hashlib.sha256(self.data).hexdigest()
-
-
 class ObjectStore:
-    """
-    Simple in-memory key-value store.
-    Thread-safe for asyncio (single-threaded event loop).
-    """
+    def __init__(self, data_dir: str = "/app/data") -> None:
+        self._dir = Path(data_dir)
+        self._dir.mkdir(parents=True, exist_ok=True)
+        logger.info("ObjectStore ready at %s", self._dir)
 
-    def __init__(self) -> None:
-        self._store: dict[str, StoredObject] = {}
+    def _path(self, key: str) -> Path:
+        safe = hashlib.sha256(key.encode()).hexdigest()
+        return self._dir / f"{safe}.json"
 
-    def put(self, key: str, data: bytes, metadata: dict | None = None) -> None:
-        self._store[key] = StoredObject(key=key, data=data, metadata=metadata or {})
-        logger.debug("stored key=%s  size=%d bytes", key, len(data))
+    def put(self, key: str, fragment: dict, fpcc: dict) -> None:
+        payload = {"fragment": fragment, "fpcc": fpcc}
+        self._path(key).write_text(json.dumps(payload), encoding="utf-8")
+        logger.debug("persisted key=%s", key)
 
-    def get(self, key: str) -> bytes | None:
-        obj = self._store.get(key)
-        return obj.data if obj else None
-
-    def exists(self, key: str) -> bool:
-        return key in self._store
+    def get(self, key: str) -> tuple[dict, dict] | None:
+        path = self._path(key)
+        if not path.exists():
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return payload["fragment"], payload["fpcc"]
 
     def delete(self, key: str) -> bool:
-        if key in self._store:
-            del self._store[key]
+        path = self._path(key)
+        if path.exists():
+            path.unlink()
             return True
         return False
 
-    def list_keys(self) -> list[str]:
-        return list(self._store.keys())
-
-    def stats(self) -> dict:
-        total_bytes = sum(len(o.data) for o in self._store.values())
-        return {"object_count": len(self._store), "total_bytes": total_bytes}
+    def exists(self, key: str) -> bool:
+        return self._path(key).exists()

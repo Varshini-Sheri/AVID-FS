@@ -13,9 +13,12 @@ services:
       N: "5"
       M: "3"
       F: "1"
+      DATA_DIR: "/app/data"
       SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
     ports:
       - "5000:5000"
+    volumes:
+      - server0_data:/app/data
     networks:
       - verdictfs
 
@@ -28,9 +31,12 @@ services:
       N: "5"
       M: "3"
       F: "1"
+      DATA_DIR: "/app/data"
       SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
     ports:
       - "5001:5000"
+    volumes:
+      - server1_data:/app/data
     networks:
       - verdictfs
 
@@ -43,9 +49,12 @@ services:
       N: "5"
       M: "3"
       F: "1"
+      DATA_DIR: "/app/data"
       SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
     ports:
       - "5002:5000"
+    volumes:
+      - server2_data:/app/data
     networks:
       - verdictfs
 
@@ -58,9 +67,12 @@ services:
       N: "5"
       M: "3"
       F: "1"
+      DATA_DIR: "/app/data"
       SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
     ports:
       - "5003:5000"
+    volumes:
+      - server3_data:/app/data
     networks:
       - verdictfs
 
@@ -73,9 +85,12 @@ services:
       N: "5"
       M: "3"
       F: "1"
+      DATA_DIR: "/app/data"
       SERVER_URLS: "http://server0:5000,http://server1:5000,http://server2:5000,http://server3:5000,http://server4:5000"
     ports:
       - "5004:5000"
+    volumes:
+      - server4_data:/app/data
     networks:
       - verdictfs
 
@@ -102,3 +117,10 @@ services:
 networks:
   verdictfs:
     driver: bridge
+
+volumes:
+  server0_data:
+  server1_data:
+  server2_data:
+  server3_data:
+  server4_data:
