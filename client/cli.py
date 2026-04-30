@@ -13,6 +13,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -169,16 +170,36 @@ def put(
 
 @app.command()
 def get(
-    key: str = typer.Argument(..., help="Object key to retrieve"),
-    output: Path = typer.Argument(..., help="Local path to write retrieved data"),
-    chunk_count: int = typer.Option(1, help="Number of chunks (from metadata)"),
+    key: str = typer.Argument(..., help="Filename / object key (e.g. testfile.txt)"),
+    output: Path = typer.Argument(..., help="Local path to write the recovered file"),
+    chunk_count: Optional[int] = typer.Option(None, help="Number of chunks (auto-detected if omitted)"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
     """Retrieve a file from the VerdictFS cluster."""
-    client = _make_client(verbose)
-    console.print(f"\n[bold cyan]VerdictFS get[/bold cyan]  {key}  →  {output}")
+    from fs.chunker import parse_chunk_key, chunk_key as _ckey
 
-    # Attempt retrieval — server results come back alongside the data
+    # If the user passes a full chunk key like "file.txt/chunk/0" strip it
+    # down to the bare object key "file.txt" so chunk discovery works correctly.
+    parsed = parse_chunk_key(key)
+    if parsed is not None:
+        key = parsed[0]
+
+    client = _make_client(verbose)
+    console.print(f"\n[bold cyan]VerdictFS get[/bold cyan]  key=[bold]{key}[/bold]  →  {output}\n")
+
+    # Auto-discover how many chunks were stored under this key.
+    if chunk_count is None:
+        console.print("[dim]Discovering chunks on servers...[/dim]")
+        chunk_count = asyncio.run(client.discover_chunk_count(key))
+        if chunk_count == 0:
+            console.print(
+                f"[bold red]✗ No stored chunks found for key '{key}'.\n"
+                f"  Check that the key matches the name used during put.[/bold red]"
+            )
+            raise typer.Exit(1)
+        console.print(f"[dim]Found {chunk_count} chunk(s) — retrieving all.[/dim]\n")
+
+    # Retrieve and reassemble every chunk.
     success = False
     get_result = None
     error_msg = ""
@@ -188,9 +209,9 @@ def get(
     except RuntimeError as e:
         error_msg = str(e)
 
-    # Build table from the results already collected during retrieval
+    # Build a diagnostic table from the per-server results collected during retrieval.
     title = (
-        f"[green]✓ Retrieval succeeded[/green]  —  key: {key}"
+        f"[green]✓ Retrieval succeeded[/green]  —  key: {key}  ({chunk_count} chunk(s))"
         if success else
         f"[red]✗ Retrieval failed[/red]  —  key: {key}"
     )
@@ -225,11 +246,13 @@ def get(
 
     if success:
         output.write_bytes(get_result.data)
-        console.print(f"[bold green]✓ Retrieved {len(get_result.data):,} bytes  →  {output}[/bold green]")
+        console.print(
+            f"\n[bold green]✓ Wrote {len(get_result.data):,} bytes "
+            f"({chunk_count} chunk(s))  →  {output}[/bold green]"
+        )
         console.print(f"  ({have}/{client.n} fragments available, needed {client.m})\n")
     else:
-        console.print(f"[bold red]✗ {error_msg}[/bold red]")
-        console.print(f"  ({have}/{client.n} fragments available, needed {client.m})\n")
+        console.print(f"\n[bold red]✗ {error_msg}[/bold red]\n")
         raise typer.Exit(1)
 
 

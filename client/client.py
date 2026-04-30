@@ -101,6 +101,27 @@ class VerdictFSClient:
                 all_server_results.extend(srv)
         return GetResult(data=join(chunks), key=key, server_results=all_server_results)
 
+    async def discover_chunk_count(self, key: str) -> int:
+        """Probe servers to find how many chunks exist for a bare object key."""
+        count = 0
+        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as http:
+            while True:
+                ckey = chunk_key(key, count)
+                results = await asyncio.gather(
+                    *[http.get(f"{url}/retrieve/{ckey}") for url in self.server_urls],
+                    return_exceptions=True,
+                )
+                found = any(
+                    not isinstance(r, Exception)
+                    and r.status_code == 200
+                    and r.json().get("stored")
+                    for r in results
+                )
+                if not found:
+                    break
+                count += 1
+        return count
+
     async def wait_for_status(self, key: str, timeout: float = 5.0) -> list[dict]:
         """Poll all servers for status of a key. Used by CLI after put."""
         await asyncio.sleep(1.5)  # give echo/ready rounds time to complete
