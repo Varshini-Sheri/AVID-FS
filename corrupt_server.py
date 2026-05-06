@@ -23,10 +23,12 @@ Usage:
 If --key is omitted, defaults to testfile.txt/chunk/0.
 """
 
+import os
 import sys
 import httpx
 
-SERVER_URLS = [f"http://localhost:{5000+i}" for i in range(5)]
+_default_urls = ",".join(f"http://localhost:{5000+i}" for i in range(5))
+SERVER_URLS = [u.strip() for u in os.environ.get("SERVER_URLS", _default_urls).split(",")]
 DEFAULT_KEY  = "testfile.txt/chunk/0"
 
 

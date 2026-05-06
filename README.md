@@ -38,6 +38,9 @@ verdictfs/
 ├── corrupt_server.py            ← Byzantine fault injection tool
 ├── demo.sh                      ← Automated fault-tolerance demo script
 │
+├── deploy/
+│   └── start_server.sh          ← EC2 node startup script
+│
 ├── core/
 │   ├── gf.py                    ← GF(2⁸) finite field arithmetic
 │   ├── fingerprint.py           ← Homomorphic fingerprinting
