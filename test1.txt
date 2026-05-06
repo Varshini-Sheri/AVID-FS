@@ -1,0 +1,100 @@
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.
+This is the original secret document.
+It contains important information that must arrive intact.
+If even one Byzantine server corrupts its fragment during retrieval,
+and the client does not verify against the FPCC,
+the decoded output will be corrupted garbage.

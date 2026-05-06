@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  VerdictFS  —  Fault-Tolerance Demo Script
-#  1. PUT baseline
-#  2. GET baseline
-#  3. Crash server2 offline
-#  4. GET with 1 offline
-#  5. Corrupt server3  →  1 Byzantine + 1 offline  (succeeds)
-#  6. Corrupt server0  →  2 Byzantine + 1 offline  (expected FAILURE)
-#  7. docker compose down  (full cluster restart)
-#  8. docker compose up
-#  9. GET  →  clean recovery
+#  0.  Pre-flight
+#  1.  BYZANTINE BEFORE PUT  →  corrupt server3 first, then disperse + retrieve
+#  2.  Full reset (restart server3 to clear corruption)
+#  3.  PUT baseline  (all servers honest)
+#  4.  GET baseline
+#  5.  Crash server2 offline
+#  6.  GET with 1 offline
+#  7.  Corrupt server3  →  1 Byzantine + 1 offline  (succeeds)
+#  8.  Corrupt server0  →  2 Byzantine + 1 offline  (expected FAILURE)
+#  9.  docker compose down  (full cluster restart)
+#  10. docker compose up
+#  11. GET  →  clean recovery
 # =============================================================================
 
 set -euo pipefail
@@ -64,37 +67,70 @@ docker compose up -d
 pause
 ok "All 5 servers running"
 
-# ── Step 1: Baseline PUT ──────────────────────────────────────────────────────
-banner "1  PUT — store file across all 5 servers"
+# ── Step 1: Byzantine fault BEFORE PUT ───────────────────────────────────────
+banner "1  BYZANTINE BEFORE PUT — corrupt server3 before dispersal"
+
+info "This is the strongest correctness test: server3 is adversarial during"
+info "the disperse itself, not just at retrieval time."
+info ""
+
+$CORRUPT --lie 3 --key "$KEY"
+warn "server3 is now Byzantine — it will store a tampered fragment"
+warn "but will still participate in echo/ready rounds and claim stored=True"
+pause
+
+info "Dispersing file with server3 already Byzantine..."
+info "AVID-FP requires n-f=4 honest echo/ready responses — servers 0,1,2,4 provide them."
+$CLI put "$FILE"
+ok "PUT succeeded — 4 honest servers satisfied echo/ready thresholds"
+pause
+
+info "Retrieving — FPCC fingerprint check should reject server3's tampered fragment..."
+$CLI get "$KEY" received_prebyz.txt
+verify_files_match "$FILE" received_prebyz.txt
+ok "FPCC detected and excluded server3 — reconstructed from honest servers"
+pause
+
+# ── Step 2: Reset server3 before main demo ────────────────────────────────────
+banner "2  RESET — restart server3 to clear corruption state"
+
+info "Restarting server3 container to wipe the tampered fragment from memory..."
+docker compose restart server3
+sleep 5
+ok "server3 restarted and clean"
+pause
+
+# ── Step 3: Baseline PUT ──────────────────────────────────────────────────────
+banner "3  PUT — store file across all 5 servers (all honest)"
 
 $CLI put "$FILE"
 ok "Put complete"
 pause
 
-# ── Step 2: Baseline GET ──────────────────────────────────────────────────────
-banner "2  GET — all 5 servers healthy (baseline)"
+# ── Step 4: Baseline GET ──────────────────────────────────────────────────────
+banner "4  GET — all 5 servers healthy (baseline)"
 
 $CLI get "$KEY" received_baseline.txt
 verify_files_match "$FILE" received_baseline.txt
 pause
 
-# ── Step 3: Take server2 offline ─────────────────────────────────────────────
-banner "3  CRASH FAULT — taking $OFFLINE_SERVER offline"
+# ── Step 5: Take server2 offline ─────────────────────────────────────────────
+banner "5  CRASH FAULT — taking $OFFLINE_SERVER offline"
 
 docker stop "$OFFLINE_SERVER"
 warn "$OFFLINE_SERVER is now offline"
 pause
 
-# ── Step 4: GET with 1 server offline ────────────────────────────────────────
-banner "4  GET — 1 offline  (4/5 fragments, need 3)"
+# ── Step 6: GET with 1 server offline ────────────────────────────────────────
+banner "6  GET — 1 offline  (4/5 fragments available, need 3)"
 
 $CLI get "$KEY" received_1offline.txt
 verify_files_match "$FILE" received_1offline.txt
 ok "Reconstruction succeeded with 4 fragments"
 pause
 
-# ── Step 5: 1 Byzantine + 1 offline  →  should still succeed ─────────────────
-banner "5  BYZANTINE — corrupt server3  (1 Byzantine + 1 offline, need 3)"
+# ── Step 7: 1 Byzantine + 1 offline  →  should still succeed ─────────────────
+banner "7  BYZANTINE — corrupt server3  (1 Byzantine + 1 offline, need 3)"
 
 $CORRUPT --lie 3 --key "$KEY"
 warn "server3 is serving corrupted data but claiming stored=True"
@@ -106,8 +142,8 @@ verify_files_match "$FILE" received_1byz.txt
 ok "FPCC caught server3 — reconstructed from 3 clean fragments"
 pause
 
-# ── Step 6: 2 Byzantine + 1 offline  →  expected FAILURE ─────────────────────
-banner "6  BYZANTINE — corrupt server0  (2 Byzantine + 1 offline, expected FAILURE)"
+# ── Step 8: 2 Byzantine + 1 offline  →  expected FAILURE ─────────────────────
+banner "8  BYZANTINE — corrupt server0  (2 Byzantine + 1 offline, expected FAILURE)"
 
 $CORRUPT --lie 0 --key "$KEY"
 warn "server0 is now also Byzantine"
@@ -126,23 +162,23 @@ else
 fi
 pause
 
-# ── Step 7: Full cluster restart ─────────────────────────────────────────────
-banner "7  RESTART — docker compose down (full cluster teardown)"
+# ── Step 9: Full cluster restart ──────────────────────────────────────────────
+banner "9  RESTART — docker compose down (full cluster teardown)"
 
 docker compose down
 warn "All containers stopped and removed"
 pause
 
-# ── Step 8: Bring everything back up ─────────────────────────────────────────
-banner "8  RESTART — docker compose up"
+# ── Step 10: Bring everything back up ─────────────────────────────────────────
+banner "10  RESTART — docker compose up"
 
 docker compose up -d
 info "Waiting for all servers to become ready..."
 sleep 10
 ok "All 5 servers back online"
 
-# ── Step 9: GET after full restart ───────────────────────────────────────────
-banner "9  GET — after full cluster restart"
+# ── Step 11: GET after full restart ───────────────────────────────────────────
+banner "11  GET — after full cluster restart"
 
 $CLI get "$KEY" received_recovered.txt
 verify_files_match "$FILE" received_recovered.txt
@@ -153,6 +189,7 @@ banner "Demo complete — summary"
 
 echo -e "  ${BOLD}Test case                                Result${RESET}"
 echo    "  ───────────────────────────────────────────────────"
+echo -e "  Byzantine BEFORE put                     ${GREEN}PASS${RESET}  (FPCC excluded server3)"
 echo -e "  Baseline put + get                       ${GREEN}PASS${RESET}"
 echo -e "  1 server offline (crash fault)           ${GREEN}PASS${RESET}  (4/5 fragments)"
 echo -e "  1 Byzantine + 1 offline                  ${GREEN}PASS${RESET}  (FPCC excluded server3)"

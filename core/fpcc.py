@@ -14,9 +14,7 @@ Verification at server i (Definition 3.3):
   (b) fingerprint_from_seed(seed, fragment[i]) == encode_i(fp[0..m-1])
       where encode_i is the i-th row of the systematic erasure code matrix
 
-The beauty of (b): because fingerprinting is linear over GF(2^8) and
-zfec/Reed-Solomon erasure coding is also linear over GF(2^8), the
-fingerprints of parity fragments equal the parity of the fingerprints.
+
 """
 
 import hashlib
