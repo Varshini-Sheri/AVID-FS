@@ -39,7 +39,9 @@ verdictfs/
 ├── demo.sh                      ← Automated fault-tolerance demo script
 │
 ├── deploy/
-│   └── start_server.sh          ← EC2 node startup script
+│   ├── start_server.sh          ← EC2 node startup script (manual / nohup)
+│   ├── setup_ec2.sh             ← One-time EC2 instance setup + systemd registration
+│   └── demo_ec2.sh              ← EC2-adapted demo (SSH-based server management)
 │
 ├── core/
 │   ├── gf.py                    ← GF(2⁸) finite field arithmetic
