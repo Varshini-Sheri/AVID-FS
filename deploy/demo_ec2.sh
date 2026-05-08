@@ -15,13 +15,13 @@
 set -euo pipefail
 
 # ── Configure these ───────────────────────────────────────────────────────────
-IP0="<ec2-ip-server0>"
-IP1="<ec2-ip-server1>"
-IP2="<ec2-ip-server2>"
-IP3="<ec2-ip-server3>"
-IP4="<ec2-ip-server4>"
-SSH_KEY="~/.ssh/verdictfs-key.pem"   # path to your EC2 key pair
-SSH_USER="ec2-user"                   # Amazon Linux default; use "ubuntu" on Ubuntu AMIs
+IP0="35.90.219.159"
+IP1="44.243.173.4"
+IP2="34.219.102.134"
+IP3="35.93.53.192"
+IP4="44.254.65.221"
+SSH_KEY="$HOME/verdictfs-key.pem"    # copied to WSL home directory
+SSH_USER="ec2-user"
 # ─────────────────────────────────────────────────────────────────────────────
 
 export SERVER_URLS="http://$IP0:5000,http://$IP1:5000,http://$IP2:5000,http://$IP3:5000,http://$IP4:5000"

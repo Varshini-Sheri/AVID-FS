@@ -7,6 +7,7 @@ cleanly over HTTP. FastAPI/Pydantic handles encode/decode automatically.
 """
 
 import base64
+from typing import Optional
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
 
@@ -78,8 +79,8 @@ class DisperseRequest(BaseModel):
 
 class RetrieveResponse(BaseModel):
     key: str
-    fragment: Fragment | None = None
-    fpcc: FPCC | None = None
+    fragment: Optional[Fragment] = None
+    fpcc: Optional[FPCC] = None
     stored: bool
 
 

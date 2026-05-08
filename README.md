@@ -374,3 +374,113 @@ docker compose down -v
 
 ---
 
+## AWS EC2 Deployment
+ 
+VerdictFS can be deployed on real distributed infrastructure using the scripts in the `deploy/` directory. Each of the 5 servers runs on a separate EC2 instance, communicating over public IP addresses.
+ 
+### How it differs from Docker Compose
+ 
+| | Docker Compose | AWS EC2 |
+|---|---|---|
+| Server addresses | Internal DNS (`server0:5000`) | Public IPs via `SERVER_URLS` |
+| Process management | Docker container | `systemd` service |
+| Crash simulation | `docker stop verdictfs-serverN-1` | `ssh ... systemctl stop verdictfs` |
+| Log access | `docker compose logs` | `ssh ... journalctl -u verdictfs -f` |
+ 
+The protocol code is **identical** in both environments — only the peer addresses change.
+ 
+### Prerequisites
+ 
+- 5 EC2 instances (Amazon Linux 2 or Ubuntu) in the same region
+- A security group with inbound TCP **5000** open to `0.0.0.0/0` and inbound **SSH 22**
+- Your SSH key pair (e.g. `verdictfs-key.pem`)
+- All 5 public IP addresses
+### Step 1 — Create the security group
+ 
+In the AWS EC2 console:
+ 
+1. Go to **Security Groups → Create security group**
+2. Add inbound rules:
+| Type | Port | Source |
+|------|------|--------|
+| Custom TCP | 5000 | 0.0.0.0/0 |
+| SSH | 22 | My IP |
+ 
+3. Add outbound: All traffic → `0.0.0.0/0`
+### Step 2 — Launch 5 EC2 instances
+ 
+Launch 5 instances (e.g. `t3.micro`, Amazon Linux 2) all using the security group from Step 1. Note all 5 public IPs — you will need them in the next step.
+ 
+### Step 3 — Bootstrap each instance
+ 
+SSH into each instance and run `setup_ec2.sh` with the correct `SERVER_ID` (0–4) and the full comma-separated list of all 5 public IPs:
+ 
+```bash
+# Instance 0
+ssh -i verdictfs-key.pem ec2-user@<ip0>
+SERVER_ID=0 \
+SERVER_URLS="http://<ip0>:5000,http://<ip1>:5000,http://<ip2>:5000,http://<ip3>:5000,http://<ip4>:5000" \
+bash deploy/setup_ec2.sh
+```
+ 
+Repeat for instances 1–4, incrementing `SERVER_ID` each time. The script:
+- Installs Python 3.11 and dependencies
+- Clones the repository
+- Registers a `systemd` service (`verdictfs`) that auto-starts on reboot
+### Step 4 — Verify all servers are healthy
+ 
+From your local machine:
+ 
+```bash
+for ip in <ip0> <ip1> <ip2> <ip3> <ip4>; do
+  echo -n "server @ $ip  → "
+  curl -s http://$ip:5000/health | python -c "import sys,json; print(json.load(sys.stdin)['status'])"
+done
+```
+ 
+Expected:
+```
+server @ <ip0>  → ok
+server @ <ip1>  → ok
+server @ <ip2>  → ok
+server @ <ip3>  → ok
+server @ <ip4>  → ok
+```
+ 
+### Step 5 — Run the client
+ 
+Export `SERVER_URLS` on your local machine and use the CLI exactly as with Docker:
+ 
+```bash
+export SERVER_URLS="http://<ip0>:5000,http://<ip1>:5000,http://<ip2>:5000,http://<ip3>:5000,http://<ip4>:5000"
+ 
+python -m client.cli put test1.txt
+python -m client.cli get test1.txt recovered.txt
+cmp -s test1.txt recovered.txt && echo "✓ Files match"
+```
+ 
+### Step 6 — Run the EC2 fault-tolerance demo
+ 
+```bash
+bash deploy/demo_ec2.sh
+```
+ 
+This runs all fault scenarios using SSH to stop/restart individual server instances instead of Docker commands.
+ 
+### Useful server management commands
+ 
+```bash
+# View live logs on server2
+ssh -i verdictfs-key.pem ec2-user@<ip2> "sudo journalctl -u verdictfs -f"
+ 
+# Stop server3 (crash fault simulation)
+ssh -i verdictfs-key.pem ec2-user@<ip3> "sudo systemctl stop verdictfs"
+ 
+# Restart server3
+ssh -i verdictfs-key.pem ec2-user@<ip3> "sudo systemctl start verdictfs"
+```
+
+## AWS Demo Video Link
+
+https://uofi.box.com/s/500adyowygntrmghi6sst7meyzohq1l3
+
